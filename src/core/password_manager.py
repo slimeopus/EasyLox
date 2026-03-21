@@ -11,6 +11,8 @@ from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 import base64
+import uuid
+import hashlib
 
 class PasswordManager:
     """
@@ -163,7 +165,6 @@ class PasswordManager:
         Returns:
             str: Уникальный ID
         """
-        import uuid
         return str(uuid.uuid4())
     
     def load_data(self) -> None:
@@ -199,8 +200,8 @@ class PasswordManager:
                     encrypted_data = self.fernet.encrypt(data.encode()).decode('utf-8')
                     f.write(encrypted_data)
                 else:
-                    # Если ключ недоступен, пишем в открытом виде (только при инициализации)
-                    f.write(data)
+                    # Если мастер-пароль установлен, но ключ шифрования недоступен, не сохраняем данные в открытом виде
+                    raise RuntimeError("Cannot save data: encryption key is missing")
         except Exception as e:
             print(f"Ошибка сохранения данных: {e}")
     
@@ -234,8 +235,6 @@ class PasswordManager:
         Returns:
             bool: True если успешно установлен
         """
-        import hashlib
-        import os
         try:
             # Генерируем соль
             salt = os.urandom(16)
@@ -268,7 +267,6 @@ class PasswordManager:
         Returns:
             bool: True если пароль верный
         """
-        import hashlib
         try:
             with open(self.password_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
