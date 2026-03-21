@@ -12,7 +12,7 @@ class MainWindow:
     def __init__(self, root, password_manager):
         self.root = root
         self.password_manager = password_manager
-        self.root.title("Пароль-Гид")
+        self.root.title("EasyLox")
         self.root.geometry("800x600")
         self.root.minsize(600, 500)
         
@@ -51,7 +51,7 @@ class MainWindow:
         self.main_frame.pack(fill='both', expand=True, padx=10, pady=5)
         
         # Заголовок
-        title_label = ttk.Label(self.main_frame, text="Пароль-Гид", font=("Helvetica", 16, "bold"))
+        title_label = ttk.Label(self.main_frame, text="EasyLox", font=("Helvetica", 16, "bold"))
         title_label.pack(pady=10)
         
         # Контейнер для карточек паролей
