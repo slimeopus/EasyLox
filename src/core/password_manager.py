@@ -12,7 +12,7 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 import base64
 import uuid
-import hashlib
+
 
 class PasswordManager:
     """
@@ -23,10 +23,8 @@ class PasswordManager:
         self.data_file = data_file
         self.password_file = password_file
         self.passwords = []  # Список для хранения паролей
-        self.master_password_hash = None
         self.fernet = None  # Ключ шифрования
         self.load_data()  # Загружаем данные при инициализации
-        self.load_master_password()  # Загружаем мастер-пароль
 
     def clear_memory(self) -> None:
         """
@@ -185,14 +183,20 @@ class PasswordManager:
         try:
             if os.path.exists(self.data_file):
                 with open(self.data_file, 'r', encoding='utf-8') as f:
-                    encrypted_data = f.read()
-                    if encrypted_data and self.fernet:
-                        # Расшифровываем данные
-                        decrypted_data = self.fernet.decrypt(encrypted_data.encode()).decode('utf-8')
-                        self.passwords = json.loads(decrypted_data)
-                    else:
-                        # Если файл пустой или ключ не доступен, инициализируем пустой список
-                        self.passwords = []
+                    content = f.read().strip()
+                    
+                # Если файл пустой или содержит только пробелы
+                if not content:
+                    self.passwords = []
+                    return
+                    
+                # Пытаемся расшифровать и загрузить данные
+                if self.fernet:
+                    decrypted_data = self.fernet.decrypt(content.encode()).decode('utf-8')
+                    self.passwords = json.loads(decrypted_data)
+                else:
+                    # Ключ шифрования недоступен — не можем расшифровать
+                    self.passwords = []
             else:
                 self.passwords = []
         except Exception as e:
@@ -216,6 +220,11 @@ class PasswordManager:
         except Exception as e:
             print(f"Ошибка сохранения данных: {e}")
     
+    # Константы для PBKDF2
+    PBKDF2_ITERATIONS = 100000  # Можно увеличить в будущем
+    PBKDF2_ALGORITHM = hashes.SHA256()
+    PBKDF2_KEY_LENGTH = 32
+    
     def _derive_key(self, password: str, salt: bytes) -> bytes:
         """
         Вывести ключ шифрования из мастер-пароля и соли
@@ -228,10 +237,10 @@ class PasswordManager:
             bytes: Ключ шифрования
         """
         kdf = PBKDF2HMAC(
-            algorithm=hashes.SHA256(),
-            length=32,
+            algorithm=self.PBKDF2_ALGORITHM,
+            length=self.PBKDF2_KEY_LENGTH,
             salt=salt,
-            iterations=100000
+            iterations=self.PBKDF2_ITERATIONS
         )
         key = base64.urlsafe_b64encode(kdf.derive(password.encode()))
         return key
@@ -257,11 +266,13 @@ class PasswordManager:
             verification_token = os.urandom(32)
             # Шифруем маркер с помощью ключа
             encrypted_token = self.fernet.encrypt(verification_token)
-            # Сохраняем соль и зашифрованный маркер в файл
+            # Сохраняем соль, зашифрованный маркер и параметры PBKDF2 в файл
             with open(self.password_file, 'w', encoding='utf-8') as f:
                 json.dump({
                     "salt": base64.b64encode(salt).decode('utf-8'),
-                    "encrypted_token": base64.b64encode(encrypted_token).decode('utf-8')
+                    "encrypted_token": base64.b64encode(encrypted_token).decode('utf-8'),
+                    "pbkdf2_iterations": self.PBKDF2_ITERATIONS,
+                    "pbkdf2_algorithm": "SHA256"
                 }, f, ensure_ascii=False, indent=2)
             # Сохраняем текущее состояние данных в зашифрованном виде
             self.save_data()
@@ -285,13 +296,22 @@ class PasswordManager:
                 data = json.load(f)
                 saved_salt = data.get("salt")
                 saved_encrypted_token = data.get("encrypted_token")
+                saved_iterations = data.get("pbkdf2_iterations", self.PBKDF2_ITERATIONS)
                 
             if not saved_salt or not saved_encrypted_token:
                 return False
             
-            # Выводим ключ шифрования из введенного пароля и сохраненной соли
+            # Восстанавливаем параметры PBKDF2
             salt = base64.b64decode(saved_salt)
-            key = self._derive_key(password, salt)
+            
+            # Выводим ключ шифрования из введенного пароля и сохраненной соли
+            kdf = PBKDF2HMAC(
+                algorithm=self.PBKDF2_ALGORITHM,
+                length=self.PBKDF2_KEY_LENGTH,
+                salt=salt,
+                iterations=saved_iterations
+            )
+            key = base64.urlsafe_b64encode(kdf.derive(password.encode()))
             self.fernet = Fernet(key)
             
             # Пытаемся расшифровать сохраненный маркер
@@ -306,11 +326,13 @@ class PasswordManager:
             print(f"Ошибка проверки мастер-пароля: {e}")
             return False
     
-    def load_master_password(self) -> bool:
+    def is_master_password_set(self) -> bool:
         """
-        Загрузить мастер-пароль из файла
+        Проверить, установлен ли мастер-пароль
+        
+        Returns:
+            bool: True если мастер-пароль установлен
         """
-        # Для обратной совместимости можно оставить загрузку хеша, но в новом формате он не используется
         try:
             if os.path.exists(self.password_file):
                 with open(self.password_file, 'r', encoding='utf-8') as f:
@@ -320,5 +342,5 @@ class PasswordManager:
                         return True  # Мастер-пароль установлен
             return False  # Файл не существует или не содержит необходимых данных
         except (json.JSONDecodeError, IOError) as e:
-            print(f"Ошибка загрузки мастер-пароля: {e}")
+            print(f"Ошибка проверки наличия мастер-пароля: {e}")
             return False
