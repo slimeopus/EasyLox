@@ -27,6 +27,17 @@ class PasswordManager:
         self.fernet = None  # Ключ шифрования
         self.load_data()  # Загружаем данные при инициализации
         self.load_master_password()  # Загружаем мастер-пароль
+
+    def clear_memory(self) -> None:
+        """
+        Явно очистить чувствительные данные из памяти
+        """
+        if hasattr(self, 'passwords'):
+            for password_entry in self.passwords:
+                if 'password' in password_entry:
+                    password_entry['password'] = '***REDACTED***'
+            self.passwords.clear()
+        self.fernet = None
     
     def add_password(self, service: str, login: str, password: str, 
                     category: str = "", notes: str = "") -> bool:
@@ -242,13 +253,15 @@ class PasswordManager:
             key = self._derive_key(password, salt)
             # Инициализируем Fernet
             self.fernet = Fernet(key)
-            # Хешируем пароль для аутентификации
-            self.master_password_hash = hashlib.sha256(password.encode()).hexdigest()
-            # Сохраняем хеш и соль в файл
+            # Генерируем случайный маркер
+            verification_token = os.urandom(32)
+            # Шифруем маркер с помощью ключа
+            encrypted_token = self.fernet.encrypt(verification_token)
+            # Сохраняем соль и зашифрованный маркер в файл
             with open(self.password_file, 'w', encoding='utf-8') as f:
                 json.dump({
-                    "master_password_hash": self.master_password_hash,
-                    "salt": base64.b64encode(salt).decode('utf-8')
+                    "salt": base64.b64encode(salt).decode('utf-8'),
+                    "encrypted_token": base64.b64encode(encrypted_token).decode('utf-8')
                 }, f, ensure_ascii=False, indent=2)
             # Сохраняем текущее состояние данных в зашифрованном виде
             self.save_data()
@@ -270,36 +283,42 @@ class PasswordManager:
         try:
             with open(self.password_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-                saved_hash = data.get("master_password_hash")
                 saved_salt = data.get("salt")
+                saved_encrypted_token = data.get("encrypted_token")
                 
-            if not saved_hash or not saved_salt:
+            if not saved_salt or not saved_encrypted_token:
                 return False
             
-            # Хешируем введенный пароль и сравниваем с сохраненным хешем
-            password_hash = hashlib.sha256(password.encode()).hexdigest()
-            if password_hash != saved_hash:
-                return False
-            
-            # Если хеш совпал, выводим ключ шифрования
+            # Выводим ключ шифрования из введенного пароля и сохраненной соли
             salt = base64.b64decode(saved_salt)
             key = self._derive_key(password, salt)
             self.fernet = Fernet(key)
+            
+            # Пытаемся расшифровать сохраненный маркер
+            try:
+                encrypted_token = base64.b64decode(saved_encrypted_token)
+                self.fernet.decrypt(encrypted_token)
+            except Exception:
+                return False  # Ошибка расшифровки — неверный пароль
             
             return True
         except Exception as e:
             print(f"Ошибка проверки мастер-пароля: {e}")
             return False
     
-    def load_master_password(self) -> None:
+    def load_master_password(self) -> bool:
         """
         Загрузить мастер-пароль из файла
         """
+        # Для обратной совместимости можно оставить загрузку хеша, но в новом формате он не используется
         try:
             if os.path.exists(self.password_file):
                 with open(self.password_file, 'r', encoding='utf-8') as f:
                     data = json.load(f)
-                    self.master_password_hash = data.get("master_password_hash")
+                    # Проверяем наличие обязательных полей для нового формата
+                    if "salt" in data and "encrypted_token" in data:
+                        return True  # Мастер-пароль установлен
+            return False  # Файл не существует или не содержит необходимых данных
         except (json.JSONDecodeError, IOError) as e:
             print(f"Ошибка загрузки мастер-пароля: {e}")
-            self.master_password_hash = None
+            return False
