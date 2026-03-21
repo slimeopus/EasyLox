@@ -73,6 +73,13 @@ class SettingsWindow:
         """
         Создание вкладки "Основные"
         """
+        # Версия приложения
+        version_frame = ttk.LabelFrame(parent, text="Версия")
+        version_frame.pack(fill='x', padx=10, pady=10)
+        
+        version_label = ttk.Label(version_frame, text="1.0.0")
+        version_label.pack(anchor='w', padx=10, pady=5)
+        
         # Тема оформления
         theme_frame = ttk.LabelFrame(parent, text="Тема оформления")
         theme_frame.pack(fill='x', padx=10, pady=10)
