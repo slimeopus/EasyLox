@@ -22,8 +22,8 @@ def main():
     root = tk.Tk()
     root.withdraw()  # Скрываем главное окно до успешной аутентификации
     
-    # Проверяем, первый ли это запуск (существует ли файл с мастер-паролем)
-    is_first_run = not password_manager.master_password_hash
+    # Проверяем, первый ли это запуск (существует ли файл с мастер-паролем и можно ли его проверить)
+    is_first_run = not password_manager.is_master_password_set()
     
     # Создаем и показываем диалог аутентификации
     auth_dialog = AuthDialog(root, password_manager, is_first_run)
