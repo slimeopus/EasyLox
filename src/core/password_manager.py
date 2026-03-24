@@ -181,23 +181,33 @@ class PasswordManager:
         Загрузить данные из файла
         """
         try:
-            if os.path.exists(self.data_file):
-                with open(self.data_file, 'r', encoding='utf-8') as f:
-                    content = f.read().strip()
-                    
-                # Если файл пустой или содержит только пробелы
-                if not content:
-                    self.passwords = []
-                    return
-                    
-                # Пытаемся расшифровать и загрузить данные
-                if self.fernet:
-                    decrypted_data = self.fernet.decrypt(content.encode()).decode('utf-8')
-                    self.passwords = json.loads(decrypted_data)
-                else:
-                    # Ключ шифрования недоступен — не можем расшифровать
-                    self.passwords = []
+            print(f"Попытка загрузки данных из файла: {self.data_file}")
+            
+            if not os.path.exists(self.data_file):
+                print(f"Файл данных не существует: {self.data_file}")
+                self.passwords = []
+                return
+                
+            with open(self.data_file, 'r', encoding='utf-8') as f:
+                content = f.read().strip()
+                
+            print(f"Прочитано {len(content)} байт из файла")
+            
+            # Если файл пустой или содержит только пробелы
+            if not content:
+                print("Файл данных пустой")
+                self.passwords = []
+                return
+                
+            # Пытаемся расшифровать и загрузить данные
+            if self.fernet:
+                print("Расшифровка данных...")
+                decrypted_data = self.fernet.decrypt(content.encode()).decode('utf-8')
+                print(f"Расшифрованные данные: {decrypted_data[:200]}...")
+                self.passwords = json.loads(decrypted_data)
+                print(f"Загружено {len(self.passwords)} паролей")
             else:
+                print("Ключ шифрования недоступен - не можем расшифровать данные")
                 self.passwords = []
         except Exception as e:
             print(f"Ошибка загрузки данных: {e}")
@@ -208,14 +218,28 @@ class PasswordManager:
         Сохранить данные в файл
         """
         try:
+            print(f"Сохранение данных в файл: {self.data_file}")
+            print(f"Количество паролей для сохранения: {len(self.passwords)}")
+            
+            # Конвертируем даты в строковый формат, если они еще не строки
+            for password in self.passwords:
+                if isinstance(password.get('created_date'), datetime):
+                    password['created_date'] = password['created_date'].isoformat()
+                if isinstance(password.get('modified_date'), datetime):
+                    password['modified_date'] = password['modified_date'].isoformat()
+            
+            data = json.dumps(self.passwords, ensure_ascii=False, indent=2)
+            print(f"JSON данные для сохранения: {data[:200]}...")
+            
             with open(self.data_file, 'w', encoding='utf-8') as f:
-                data = json.dumps(self.passwords, ensure_ascii=False, indent=2)
                 if self.fernet:
                     # Шифруем данные перед записью
                     encrypted_data = self.fernet.encrypt(data.encode()).decode('utf-8')
+                    print(f"Размер зашифрованных данных: {len(encrypted_data)} символов")
                     f.write(encrypted_data)
+                    print(f"Данные успешно зашифрованы и записаны в файл")
                 else:
-                    # Если мастер-пароль установлен, но ключ шифрования недоступен, не сохраняем данные в открытом виде
+                    print("Ключ шифрования недоступен - не можем сохранить данные")
                     raise RuntimeError("Cannot save data: encryption key is missing")
         except Exception as e:
             print(f"Ошибка сохранения данных: {e}")
