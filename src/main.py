@@ -34,6 +34,10 @@ def main():
         root.destroy()
         return
     
+    # После успешной аутентификации загружаем данные
+    print("Повторная загрузка данных после аутентификации...")
+    password_manager.load_data()
+    
     # Создаем и показываем главное окно приложения
     root.deiconify()  # Показываем главное окно
     app = MainWindow(root, password_manager)
