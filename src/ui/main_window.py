@@ -90,15 +90,15 @@ class MainWindow:
             return
         
         cards_container = ttk.Frame(self.cards_frame)
-        cards_container.pack(fill='both', expand=True, padx=10, pady=10)
+        cards_container.pack(fill='x', padx=10, pady=10)
         
         for password in passwords:
             service = password['service']
             login = password['login']
             last_modified = password['modified_date'][:10]  # Только дата
             
-            card = ttk.LabelFrame(cards_container, text=service, width=200)
-            card.pack(side='left', padx=10, pady=10, fill='y')
+            card = ttk.LabelFrame(cards_container, text=service, width=750, height=150)
+            card.pack(side='left', padx=10, pady=10, fill='both')
             card.pack_propagate(False)
             
             # Информация о карточке
@@ -109,9 +109,22 @@ class MainWindow:
             btn_frame = ttk.Frame(card)
             btn_frame.pack(pady=10)
             
-            ttk.Button(btn_frame, text="Показать", width=8, command=lambda p=password: self.show_password(p)).pack(side='left', padx=2)
-            ttk.Button(btn_frame, text="Копировать", width=8, command=lambda p=password: self.copy_password(p)).pack(side='left', padx=2)
-            ttk.Button(btn_frame, text="Редактировать", width=8, command=lambda p=password: self.edit_password(p)).pack(side='left', padx=2)
+            ttk.Button(btn_frame, text="Копировать", width=12, command=lambda p=password: self.copy_password(p)).pack(side='left', padx=2)
+            ttk.Button(btn_frame, text="Редактировать", width=14, command=lambda p=password: self.edit_password(p)).pack(side='left', padx=2)
+            ttk.Button(btn_frame, text="Удалить", width=8, command=lambda p=password: self.delete_password(p)).pack(side='left', padx=2)
+    
+    def delete_password(self, password):
+        """
+        Удалить пароль
+        
+        Args:
+            password: Пароль для удаления
+        """
+        if messagebox.askyesno("Подтверждение", f"Удалить пароль для {password['service']}?", parent=self.root):
+            if self.password_manager.delete_password(password['id']):
+                self.refresh_passwords()
+            else:
+                messagebox.showerror("Ошибка", "Не удалось удалить пароль!", parent=self.root)
     def on_search(self, *args):
         """
         Обработка события поиска (вызывается при изменении строки поиска)
